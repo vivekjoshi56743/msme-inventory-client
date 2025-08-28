@@ -7,37 +7,68 @@ import Button from '../components/Button.jsx';
 import Modal from '../components/Modal.jsx';
 import ProductForm from '../components/ProductForm.jsx';
 
+// A simple debounce hook to prevent API calls on every keystroke
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  return debouncedValue;
+}
+
+
 function DashboardPage() {
+  // ... (keep all the existing state variables for kpis, products, etc.)
   const [kpis, setKpis] = useState(null);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // --- New State for Search and Filter ---
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // 500ms delay
+
   const fetchData = useCallback(async () => {
-    setLoading(true);
+    // No setLoading(true) here to avoid UI flicker on every search/filter
     setError('');
     try {
-      const [kpiResponse, productsResponse] = await Promise.all([
-        apiClient.get('/dashboard/kpis'),
-        apiClient.get('/products')
-      ]);
-      setKpis(kpiResponse.data);
+      // Fetch products with search and filter params
+      const params = new URLSearchParams();
+      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
+      if (categoryFilter) params.append('category', categoryFilter);
+
+      const productsResponse = await apiClient.get('/products', { params });
       setProducts(productsResponse.data);
+
+      // We only need to fetch KPIs on the initial load
+      if (kpis === null) {
+        const kpiResponse = await apiClient.get('/dashboard/kpis');
+        setKpis(kpiResponse.data);
+      }
     } catch (err) {
       setError('Failed to fetch data. Please try again.');
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [debouncedSearchTerm, categoryFilter, kpis]); // Depend on debounced search and filter
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Extract unique categories for the filter dropdown
+  const categories = [...new Set(products.map(p => p.category))];
 
   const handleCreate = () => {
     setEditingProduct(null);
@@ -90,7 +121,7 @@ function DashboardPage() {
         <LogoutButton />
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
 
-        {loading && <p className="mt-4">Loading...</p>}
+        {loading && kpis === null && <p className="mt-4">Loading...</p>}
         {error && <p className="mt-4 p-4 text-center bg-red-100 text-red-700 rounded">{error}</p>}
 
         {kpis && (
@@ -106,6 +137,26 @@ function DashboardPage() {
             <h2 className="text-xl font-semibold">Inventory</h2>
             <Button onClick={handleCreate}>Create Product</Button>
           </div>
+
+          {/* --- New Search and Filter UI --- */}
+          <div className="flex space-x-4 mb-4">
+            <input
+              type="text"
+              placeholder="Search by name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full md:w-1/3 px-3 py-2 border border-gray-300 rounded-md"
+            />
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full md:w-1/4 px-3 py-2 border border-gray-300 rounded-md"
+            >
+              <option value="">All Categories</option>
+              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          </div>
+
           <ProductTable
             products={products}
             onEdit={handleEdit}
@@ -114,7 +165,7 @@ function DashboardPage() {
         </div>
 
         <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingProduct ? 'Edit Product' : 'Create New Product'}>
-          <ProductForm 
+          <ProductForm
             product={editingProduct}
             onSave={handleSave}
             onCancel={() => setIsModalOpen(false)}
@@ -125,5 +176,6 @@ function DashboardPage() {
     </div>
   );
 }
+
 
 export default DashboardPage;
