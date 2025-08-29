@@ -6,6 +6,7 @@ import ProductTable from '../components/ProductTable.jsx';
 import Button from '../components/Button.jsx';
 import Modal from '../components/Modal.jsx';
 import ProductForm from '../components/ProductForm.jsx';
+import CsvImportForm from '../components/CsvImportForm.jsx';
 
 // A simple debounce hook to prevent API calls on every keystroke
 function useDebounce(value, delay) {
@@ -21,53 +22,54 @@ function useDebounce(value, delay) {
   return debouncedValue;
 }
 
-
 function DashboardPage() {
-  // ... (keep all the existing state variables for kpis, products, etc.)
   const [kpis, setKpis] = useState(null);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-
-  // --- New State for Search and Filter ---
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const debouncedSearchTerm = useDebounce(searchTerm, 500); // 500ms delay
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   const fetchData = useCallback(async () => {
-    // No setLoading(true) here to avoid UI flicker on every search/filter
+    // Keep loading indicator for initial fetch, but not for subsequent filtering
+    if (kpis === null) {
+        setLoading(true);
+    }
     setError('');
     try {
-      // Fetch products with search and filter params
       const params = new URLSearchParams();
       if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
       if (categoryFilter) params.append('category', categoryFilter);
-
-      const productsResponse = await apiClient.get('/products', { params });
-      setProducts(productsResponse.data);
-
-      // We only need to fetch KPIs on the initial load
+      
+      const productsPromise = apiClient.get('/products', { params });
+      
+      // Only fetch KPIs on the very first load
       if (kpis === null) {
-        const kpiResponse = await apiClient.get('/dashboard/kpis');
+        const kpiPromise = apiClient.get('/dashboard/kpis');
+        const [productsResponse, kpiResponse] = await Promise.all([productsPromise, kpiPromise]);
+        setProducts(productsResponse.data);
         setKpis(kpiResponse.data);
+      } else {
+        const productsResponse = await productsPromise;
+        setProducts(productsResponse.data);
       }
+
     } catch (err) {
       setError('Failed to fetch data. Please try again.');
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearchTerm, categoryFilter, kpis]); // Depend on debounced search and filter
+  }, [debouncedSearchTerm, categoryFilter, kpis]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Extract unique categories for the filter dropdown
   const categories = [...new Set(products.map(p => p.category))];
 
   const handleCreate = () => {
@@ -85,18 +87,24 @@ function DashboardPage() {
     setError('');
     try {
       if (editingProduct) {
-        // Update logic
-        const payload = { ...productData, version: editingProduct.version };
-        await apiClient.put(`/products/${editingProduct.id}`, payload);
+        const changedFields = {};
+        for (const key in productData) {
+          if (productData[key] !== editingProduct[key]) {
+            changedFields[key] = productData[key];
+          }
+        }
+        if (Object.keys(changedFields).length > 0) {
+          const payload = { ...changedFields, version: editingProduct.version };
+          await apiClient.put(`/products/${editingProduct.id}`, payload);
+        }
       } else {
-        // Create logic
         await apiClient.post('/products', productData);
       }
       setIsModalOpen(false);
-      await fetchData(); // Refresh data after saving
+      await fetchData();
     } catch (err) {
-      setError('Failed to save product. Please try again.');
-      console.error(err);
+      const errorMessage = err.response?.data?.detail || 'Failed to save product.';
+      setError(errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -107,7 +115,7 @@ function DashboardPage() {
       setError('');
       try {
         await apiClient.delete(`/products/${productId}`);
-        await fetchData(); // Refresh data after deleting
+        await fetchData();
       } catch (err) {
         setError('Failed to delete product. Please try again.');
         console.error(err);
@@ -121,7 +129,7 @@ function DashboardPage() {
         <LogoutButton />
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
 
-        {loading && kpis === null && <p className="mt-4">Loading...</p>}
+        {loading && <p className="mt-4">Loading...</p>}
         {error && <p className="mt-4 p-4 text-center bg-red-100 text-red-700 rounded">{error}</p>}
 
         {kpis && (
@@ -133,13 +141,17 @@ function DashboardPage() {
         )}
 
         <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Inventory</h2>
+          <div className="flex justify-between items-center mb-4 border-b pb-4">
+            <div>
+              <h2 className="text-xl font-semibold">Inventory</h2>
+              <p className="text-sm text-gray-500">Create, edit, and manage your products.</p>
+            </div>
             <Button onClick={handleCreate}>Create Product</Button>
           </div>
 
-          {/* --- New Search and Filter UI --- */}
-          <div className="flex space-x-4 mb-4">
+          <CsvImportForm onImportSuccess={fetchData} />
+
+          <div className="flex space-x-4 my-4 pt-4 border-t">
             <input
               type="text"
               placeholder="Search by name..."
@@ -176,6 +188,5 @@ function DashboardPage() {
     </div>
   );
 }
-
 
 export default DashboardPage;

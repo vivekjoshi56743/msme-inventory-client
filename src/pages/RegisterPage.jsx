@@ -1,25 +1,26 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import apiClient from '../services/api.js';
 
-function LoginPage() {
+function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      await apiClient.post('/auth/register', { email, password });
+      setSuccess('Registration successful! Please log in.');
+      setTimeout(() => navigate('/login'), 2000); // Redirect to login after 2s
     } catch (err) {
-      setError('Failed to log in. Please check your credentials.');
+      setError(err.response?.data?.detail || 'Failed to register.');
       console.error(err);
     }
     setLoading(false);
@@ -29,10 +30,11 @@ function LoginPage() {
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
         <h2 className="text-2xl font-bold text-center text-gray-900">
-          MSME Inventory Lite
+          Create an Account
         </h2>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && <p className="p-3 text-center bg-red-100 text-red-700 rounded">{error}</p>}
+          {success && <p className="p-3 text-center bg-green-100 text-green-700 rounded">{success}</p>}
           <div>
             <label htmlFor="email-address" className="sr-only">Email address</label>
             <input
@@ -40,7 +42,7 @@ function LoginPage() {
               name="email"
               type="email"
               required
-              className="w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md"
               placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -53,8 +55,8 @@ function LoginPage() {
               name="password"
               type="password"
               required
-              className="w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="Password"
+              className="w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md"
+              placeholder="Password (min. 6 characters)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -63,16 +65,16 @@ function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
+              className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'Creating account...' : 'Sign up'}
             </button>
           </div>
           <div className="text-sm text-center">
             <p className="text-gray-600">
-              Don't have an account?{' '}
-              <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
-                Sign up
+              Already have an account?{' '}
+              <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
+                Sign in
               </Link>
             </p>
           </div>
@@ -82,4 +84,4 @@ function LoginPage() {
   );
 }
 
-export default LoginPage;
+export default RegisterPage;

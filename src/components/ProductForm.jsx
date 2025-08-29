@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Button from './Button';
+import { useAuth } from '../hooks/AuthContext.jsx'; // 1. Import useAuth
 
 function ProductForm({ product, onSave, onCancel, isSaving }) {
+  const { currentUser } = useAuth(); // 2. Get the current user from our context
+  const isStaff = currentUser?.role === 'staff'; // 3. Check if the user is staff
+
   const [formData, setFormData] = useState({
     name: '',
     sku: '',
@@ -14,7 +18,6 @@ function ProductForm({ product, onSave, onCancel, isSaving }) {
     if (product) {
       setFormData({ ...product });
     } else {
-      // Reset form for new product
       setFormData({ name: '', sku: '', category: '', quantity: 0, unit_price: 0.0 });
     }
   }, [product]);
@@ -32,6 +35,7 @@ function ProductForm({ product, onSave, onCancel, isSaving }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* ... other form fields remain the same ... */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Product Name</label>
         <input type="text" name="name" value={formData.name} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" />
@@ -51,7 +55,18 @@ function ProductForm({ product, onSave, onCancel, isSaving }) {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700">Unit Price</label>
-          <input type="number" name="unit_price" value={formData.unit_price} onChange={handleChange} required min="0" step="0.01" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" />
+          {/* 4. This input is now conditionally disabled */}
+          <input 
+            type="number" 
+            name="unit_price" 
+            value={formData.unit_price} 
+            onChange={handleChange} 
+            required 
+            min="0" 
+            step="0.01" 
+            disabled={isStaff} 
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 disabled:bg-gray-100 disabled:cursor-not-allowed" 
+          />
         </div>
       </div>
       <div className="flex justify-end space-x-2 pt-4">
