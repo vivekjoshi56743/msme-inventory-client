@@ -24,8 +24,8 @@ Follow these steps to run the frontend client locally.
 1. **Clone the repository:**
 
    ```bash
-   git clone <repository-url>
-   cd <repository-folder>
+   git clone https://github.com/vivekjoshi56743/msme-inventory-client.git
+   cd msme-inventory-client/client
    ```
 
 2. **Install dependencies:**
